@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package review;
+
+option java_package = "com.bookshelf.grpc.review";
+option java_outer_classname = "ReviewProto";
+option java_multiple_files = true;
+
+service ReviewService {
+  rpc GetReviewsByBook (GetReviewsByBookRequest) returns (ReviewsResponse);
+  rpc GetReviewsByUser (GetReviewsByUserRequest) returns (ReviewsResponse);
+  rpc CreateReview (CreateReviewRequest) returns (ReviewResponse);
+}
+
+message GetReviewsByBookRequest {
+  string book_id = 1;
+}
+
+message GetReviewsByUserRequest {
+  string user_id = 1;
+}
+
+message CreateReviewRequest {
+  string user_id = 1;
+  string book_id = 2;
+  int32 rating = 3;
+  string content = 4;
+  bool verified_reader = 5;
+}
+
+message ReviewResponse {
+  string review_id = 1;
+  string user_id = 2;
+  string book_id = 3;
+  int32 rating = 4;
+  string content = 5;
+  bool verified_reader = 6;
+  string created_at = 7;
+}
+
+message ReviewsResponse {
+  repeated ReviewResponse reviews = 1;
+}

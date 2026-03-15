@@ -1,0 +1,166 @@
+version: '3.9'
+
+networks:
+  bookshelf-net:
+    driver: bridge
+
+volumes:
+  postgres-user-data:
+  postgres-shelf-data:
+  postgres-review-data:
+
+services:
+
+  # ── Databases ────────────────────────────────────────────────────────────────
+
+  postgres-user:
+    image: postgres:16-alpine
+    container_name: postgres-user
+    environment:
+      POSTGRES_DB: userdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - bookshelf-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d userdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-shelf:
+    image: postgres:16-alpine
+    container_name: postgres-shelf
+    environment:
+      POSTGRES_DB: shelfdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-shelf-data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    networks:
+      - bookshelf-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shelfdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-review:
+    image: postgres:16-alpine
+    container_name: postgres-review
+    environment:
+      POSTGRES_DB: reviewdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-review-data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    networks:
+      - bookshelf-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d reviewdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Services ─────────────────────────────────────────────────────────────────
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    environment:
+      DB_HOST: postgres-user
+      DB_PORT: 5432
+      DB_NAME: userdb
+      DB_USER: postgres
+      DB_PASS: postgres
+      GRPC_PORT: 9090
+      JWT_SECRET: Ym9va3NoZWxmLWp3dC1zZWNyZXQta2V5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=
+      JWT_EXPIRATION: 86400000
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+    networks:
+      - bookshelf-net
+
+  shelf-service:
+    build:
+      context: ./shelf-service
+      dockerfile: Dockerfile
+    container_name: shelf-service
+    environment:
+      DB_HOST: postgres-shelf
+      DB_PORT: 5432
+      DB_NAME: shelfdb
+      DB_USER: postgres
+      DB_PASS: postgres
+      GRPC_PORT: 9091
+      SERVER_PORT: 8081
+      USER_SERVICE_GRPC_HOST: user-service
+      USER_SERVICE_GRPC_PORT: 9090
+    ports:
+      - "8081:8081"
+      - "9091:9091"
+    depends_on:
+      postgres-shelf:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    networks:
+      - bookshelf-net
+
+  review-service:
+    build:
+      context: ./review-service
+      dockerfile: Dockerfile
+    container_name: review-service
+    environment:
+      DB_HOST: postgres-review
+      DB_PORT: 5432
+      DB_NAME: reviewdb
+      DB_USER: postgres
+      DB_PASS: postgres
+      GRPC_PORT: 9092
+      SERVER_PORT: 8082
+      USER_SERVICE_GRPC_HOST: user-service
+      USER_SERVICE_GRPC_PORT: 9090
+      SHELF_SERVICE_GRPC_HOST: shelf-service
+      SHELF_SERVICE_GRPC_PORT: 9091
+    ports:
+      - "8082:8082"
+      - "9092:9092"
+    depends_on:
+      postgres-review:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      shelf-service:
+        condition: service_started
+    networks:
+      - bookshelf-net
+
+  react-frontend:
+    build:
+      context: ./react-frontend
+      dockerfile: Dockerfile
+    container_name: react-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - user-service
+      - shelf-service
+      - review-service
+    networks:
+      - bookshelf-net
