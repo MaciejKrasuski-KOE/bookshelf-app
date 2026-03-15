@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package shelf;
+
+option java_package = "com.bookshelf.grpc.shelf";
+option java_outer_classname = "ShelfProto";
+option java_multiple_files = true;
+
+service ShelfService {
+  rpc GetShelf (GetShelfRequest) returns (ShelfResponse);
+  rpc GetShelvesByUser (GetShelvesByUserRequest) returns (ShelvesResponse);
+  rpc AddBookToShelf (AddBookToShelfRequest) returns (ShelfResponse);
+}
+
+message GetShelfRequest {
+  string shelf_id = 1;
+}
+
+message GetShelvesByUserRequest {
+  string user_id = 1;
+}
+
+message AddBookToShelfRequest {
+  string shelf_id = 1;
+  string book_id = 2;
+}
+
+message ShelfResponse {
+  string shelf_id = 1;
+  string user_id = 2;
+  string name = 3;
+  repeated string book_ids = 4;
+}
+
+message ShelvesResponse {
+  repeated ShelfResponse shelves = 1;
+}

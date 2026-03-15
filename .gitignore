@@ -1,0 +1,19 @@
+# Maven build output
+target/
+*.jar
+*.war
+*.class
+
+# Node
+node_modules/
+dist/
+react-frontend/dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/*.log
+
+# OS
+.DS_Store
+Thumbs.db
