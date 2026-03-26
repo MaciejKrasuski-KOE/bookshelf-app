@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Code Style
+
+- Always use `{}` braces for `if`, `else`, `for`, `while` — even single-line bodies
+
 ## TDD Rules — STRICTLY FOLLOW
 
 - NEVER write implementation and tests in the same step

@@ -1,5 +1,6 @@
 package com.bookshelf.book.grpc;
 
+import com.bookshelf.book.dto.AuthorDto;
 import com.bookshelf.book.dto.BookDto;
 import com.bookshelf.book.service.BookService;
 import com.bookshelf.grpc.book.*;
@@ -42,13 +43,20 @@ public class BookGrpcService extends BookServiceGrpc.BookServiceImplBase {
 
     private BookResponse toProto(BookDto dto) {
         BookResponse.Builder builder = BookResponse.newBuilder()
-                .setBookId(dto.id())
-                .setOwnerId(dto.ownerId())
-                .setTitle(dto.title())
-                .setAuthor(dto.author())
-                .setBookType(dto.bookType().name());
-        if (dto.eshopUrl() != null) builder.setEshopUrl(dto.eshopUrl());
-        if (dto.privateFileKey() != null) builder.setPrivateFileKey(dto.privateFileKey());
+                .setBookId(dto.getId())
+                .setOwnerId(dto.getOwnerId())
+                .setTitle(dto.getTitle())
+                .setBookType(dto.getBookType().name())
+                .addAllAuthors(dto.getAuthors().stream().map(AuthorDto::name).toList());
+        if (dto.getOriginalTitle() != null) {
+            builder.setOriginalTitle(dto.getOriginalTitle());
+        }
+        if (dto.getEshopUrl() != null) {
+            builder.setEshopUrl(dto.getEshopUrl());
+        }
+        if (dto.getPrivateFileKey() != null) {
+            builder.setPrivateFileKey(dto.getPrivateFileKey());
+        }
         return builder.build();
     }
 }

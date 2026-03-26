@@ -21,10 +21,11 @@ message BookResponse {
   string book_id = 1;
   string owner_id = 2;
   string title = 3;
-  string author = 4;
+  repeated string authors = 4;
   string book_type = 5;
   string eshop_url = 6;
   string private_file_key = 7;
+  string original_title = 8;
 }
 
 message BooksResponse {

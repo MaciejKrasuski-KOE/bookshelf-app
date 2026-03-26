@@ -1,5 +1,6 @@
 package com.bookshelf.book.grpc;
 
+import com.bookshelf.book.dto.AuthorDto;
 import com.bookshelf.book.dto.BookDto;
 import com.bookshelf.book.model.BookType;
 import com.bookshelf.book.service.BookService;
@@ -32,7 +33,10 @@ class BookGrpcServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void getBook_sendsBookResponseAndCompletes_whenExists() {
-        BookDto dto = new BookDto("b1", "owner-1", "Clean Code", "Robert Martin", BookType.PAPER, null, null, NOW);
+        BookDto dto = BookDto.builder()
+                .id("b1").ownerId("owner-1").title("Clean Code")
+                .authors(List.of(new AuthorDto("a1", "Robert Martin")))
+                .bookType(BookType.PAPER).createdAt(NOW).build();
         when(bookService.getById("b1")).thenReturn(dto);
         StreamObserver<BookResponse> responseObserver = mock(StreamObserver.class);
 
@@ -46,6 +50,7 @@ class BookGrpcServiceTest {
         assertThat(captor.getValue().getBookId()).isEqualTo("b1");
         assertThat(captor.getValue().getTitle()).isEqualTo("Clean Code");
         assertThat(captor.getValue().getBookType()).isEqualTo("PAPER");
+        assertThat(captor.getValue().getAuthorsList()).containsExactly("Robert Martin");
     }
 
     @Test
@@ -66,7 +71,10 @@ class BookGrpcServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void listBooks_sendsAllBooksAndCompletes() {
-        BookDto dto = new BookDto("b1", "owner-1", "Dune", "Frank Herbert", BookType.EBOOK, "https://amazon.com", null, NOW);
+        BookDto dto = BookDto.builder()
+                .id("b1").ownerId("owner-1").title("Diuna").originalTitle("Dune")
+                .authors(List.of(new AuthorDto("a1", "Frank Herbert")))
+                .bookType(BookType.EBOOK).eshopUrl("https://amazon.com").createdAt(NOW).build();
         when(bookService.listAll()).thenReturn(List.of(dto));
         StreamObserver<BooksResponse> responseObserver = mock(StreamObserver.class);
 
@@ -78,7 +86,8 @@ class BookGrpcServiceTest {
         verify(responseObserver, never()).onError(any());
 
         assertThat(captor.getValue().getBooksList()).hasSize(1);
-        assertThat(captor.getValue().getBooks(0).getTitle()).isEqualTo("Dune");
+        assertThat(captor.getValue().getBooks(0).getTitle()).isEqualTo("Diuna");
         assertThat(captor.getValue().getBooks(0).getEshopUrl()).isEqualTo("https://amazon.com");
+        assertThat(captor.getValue().getBooks(0).getAuthorsList()).containsExactly("Frank Herbert");
     }
 }

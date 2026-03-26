@@ -1,24 +1,26 @@
 package com.bookshelf.book.service;
 
-import com.bookshelf.book.dto.BookDto;
-import com.bookshelf.book.dto.CreateBookRequest;
-import com.bookshelf.book.dto.UpdateBookRequest;
-import com.bookshelf.book.model.Book;
-import com.bookshelf.book.model.BookType;
-import com.bookshelf.book.repository.BookRepository;
+import com.bookshelf.book.dto.*;
+import com.bookshelf.book.model.*;
+import com.bookshelf.book.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class BookService {
 
     private final BookRepository bookRepository;
+    private final AuthorRepository authorRepository;
+    private final SeriesRepository seriesRepository;
+    private final SubSeriesRepository subSeriesRepository;
 
     public List<BookDto> listAll() {
         return bookRepository.findAll().stream().map(this::toDto).toList();
@@ -30,14 +32,19 @@ public class BookService {
 
     @Transactional
     public BookDto create(String ownerId, CreateBookRequest request) {
-        validateEshopUrl(request.bookType(), request.eshopUrl());
+        validateEshopUrl(request.getBookType(), request.getEshopUrl());
         Book book = Book.builder()
                 .ownerId(ownerId)
-                .title(request.title())
-                .author(request.author())
-                .bookType(request.bookType())
-                .eshopUrl(request.eshopUrl())
-                .privateFileKey(request.privateFileKey())
+                .title(request.getTitle())
+                .originalTitle(request.getOriginalTitle())
+                .authors(resolveAuthors(request.getAuthorIds()))
+                .bookType(request.getBookType())
+                .eshopUrl(request.getEshopUrl())
+                .privateFileKey(request.getPrivateFileKey())
+                .series(resolveSeries(request.getSeriesId()))
+                .subSeries(resolveSubSeries(request.getSubSeriesId()))
+                .seriesOrder(request.getSeriesOrder())
+                .subSeriesOrder(request.getSubSeriesOrder())
                 .build();
         return toDto(bookRepository.save(book));
     }
@@ -46,12 +53,17 @@ public class BookService {
     public BookDto update(String bookId, String userId, UpdateBookRequest request) {
         Book book = findOrThrow(bookId);
         authorizeOwner(book, userId);
-        validateEshopUrl(request.bookType(), request.eshopUrl());
-        book.setTitle(request.title());
-        book.setAuthor(request.author());
-        book.setBookType(request.bookType());
-        book.setEshopUrl(request.eshopUrl());
-        book.setPrivateFileKey(request.privateFileKey());
+        validateEshopUrl(request.getBookType(), request.getEshopUrl());
+        book.setTitle(request.getTitle());
+        book.setOriginalTitle(request.getOriginalTitle());
+        book.setAuthors(resolveAuthors(request.getAuthorIds()));
+        book.setBookType(request.getBookType());
+        book.setEshopUrl(request.getEshopUrl());
+        book.setPrivateFileKey(request.getPrivateFileKey());
+        book.setSeries(resolveSeries(request.getSeriesId()));
+        book.setSubSeries(resolveSubSeries(request.getSubSeriesId()));
+        book.setSeriesOrder(request.getSeriesOrder());
+        book.setSubSeriesOrder(request.getSubSeriesOrder());
         return toDto(bookRepository.save(book));
     }
 
@@ -82,16 +94,54 @@ public class BookService {
         }
     }
 
+    private List<Author> resolveAuthors(List<String> authorIds) {
+        return authorIds.stream()
+                .map(id -> authorRepository.findById(id)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Author not found: " + id)))
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private Series resolveSeries(String seriesId) {
+        if (seriesId == null) {
+            return null;
+        }
+        return seriesRepository.findById(seriesId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Series not found"));
+    }
+
+    private SubSeries resolveSubSeries(String subSeriesId) {
+        if (subSeriesId == null) {
+            return null;
+        }
+        return subSeriesRepository.findById(subSeriesId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "SubSeries not found"));
+    }
+
     public BookDto toDto(Book book) {
-        return new BookDto(
-                book.getId(),
-                book.getOwnerId(),
-                book.getTitle(),
-                book.getAuthor(),
-                book.getBookType(),
-                book.getEshopUrl(),
-                book.getPrivateFileKey(),
-                book.getCreatedAt()
-        );
+        SeriesDto seriesDto = book.getSeries() == null ? null
+                : new SeriesDto(book.getSeries().getId(), book.getSeries().getName());
+        SubSeriesDto subSeriesDto = book.getSubSeries() == null ? null
+                : new SubSeriesDto(
+                        book.getSubSeries().getId(),
+                        book.getSubSeries().getName(),
+                        new SeriesDto(book.getSubSeries().getSeries().getId(), book.getSubSeries().getSeries().getName()));
+
+        return BookDto.builder()
+                .id(book.getId())
+                .ownerId(book.getOwnerId())
+                .title(book.getTitle())
+                .originalTitle(book.getOriginalTitle())
+                .authors(book.getAuthors().stream()
+                        .map(a -> new AuthorDto(a.getId(), a.getName()))
+                        .toList())
+                .bookType(book.getBookType())
+                .eshopUrl(book.getEshopUrl())
+                .privateFileKey(book.getPrivateFileKey())
+                .series(seriesDto)
+                .subSeries(subSeriesDto)
+                .seriesOrder(book.getSeriesOrder())
+                .subSeriesOrder(book.getSubSeriesOrder())
+                .createdAt(book.getCreatedAt())
+                .build();
     }
 }

@@ -1,9 +1,11 @@
 package com.bookshelf.book.controller;
 
+import com.bookshelf.book.dto.CreateAuthorRequest;
 import com.bookshelf.book.dto.CreateBookRequest;
 import com.bookshelf.book.dto.UpdateBookRequest;
 import com.bookshelf.book.grpc.UserGrpcClient;
 import com.bookshelf.book.model.BookType;
+import com.bookshelf.book.service.AuthorService;
 import com.bookshelf.book.service.BookService;
 import com.bookshelf.grpc.user.ValidateTokenResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +19,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -29,6 +33,7 @@ class BookControllerTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @Autowired BookService bookService;
+    @Autowired AuthorService authorService;
 
     @MockBean UserGrpcClient userGrpcClient;
 
@@ -50,12 +55,15 @@ class BookControllerTest {
 
     @Test
     void listBooks_returns200WithBooks() throws Exception {
-        bookService.create(USER_ID, new CreateBookRequest("Clean Code", "Robert Martin", BookType.PAPER, null, null));
+        var author = authorService.create(new CreateAuthorRequest("Robert Martin"));
+        bookService.create(USER_ID, CreateBookRequest.builder()
+                .title("Clean Code").authorIds(List.of(author.id())).bookType(BookType.PAPER).build());
 
         mockMvc.perform(get("/api/books").header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].title").value("Clean Code"));
+                .andExpect(jsonPath("$[0].title").value("Clean Code"))
+                .andExpect(jsonPath("$[0].authors[0].name").value("Robert Martin"));
     }
 
     @Test
@@ -68,7 +76,9 @@ class BookControllerTest {
 
     @Test
     void createBook_returns201_forPaperBook() throws Exception {
-        CreateBookRequest request = new CreateBookRequest("Clean Code", "Robert Martin", BookType.PAPER, null, null);
+        var author = authorService.create(new CreateAuthorRequest("Robert Martin"));
+        var request = CreateBookRequest.builder()
+                .title("Clean Code").authorIds(List.of(author.id())).bookType(BookType.PAPER).build();
 
         mockMvc.perform(post("/api/books")
                         .header("Authorization", "Bearer " + TOKEN)
@@ -77,12 +87,32 @@ class BookControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value("Clean Code"))
                 .andExpect(jsonPath("$.bookType").value("PAPER"))
-                .andExpect(jsonPath("$.ownerId").value(USER_ID));
+                .andExpect(jsonPath("$.ownerId").value(USER_ID))
+                .andExpect(jsonPath("$.authors[0].name").value("Robert Martin"));
+    }
+
+    @Test
+    void createBook_returns201_withOriginalTitle() throws Exception {
+        var author = authorService.create(new CreateAuthorRequest("Terry Pratchett"));
+        var request = CreateBookRequest.builder()
+                .title("Straż! Straż!").originalTitle("Guards! Guards!")
+                .authorIds(List.of(author.id())).bookType(BookType.PAPER).build();
+
+        mockMvc.perform(post("/api/books")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value("Straż! Straż!"))
+                .andExpect(jsonPath("$.originalTitle").value("Guards! Guards!"));
     }
 
     @Test
     void createBook_returns201_forEbookWithEshopUrl() throws Exception {
-        CreateBookRequest request = new CreateBookRequest("Dune", "Frank Herbert", BookType.EBOOK, "https://amazon.com/dune", null);
+        var author = authorService.create(new CreateAuthorRequest("Frank Herbert"));
+        var request = CreateBookRequest.builder()
+                .title("Diuna").originalTitle("Dune").authorIds(List.of(author.id()))
+                .bookType(BookType.EBOOK).eshopUrl("https://amazon.com/dune").build();
 
         mockMvc.perform(post("/api/books")
                         .header("Authorization", "Bearer " + TOKEN)
@@ -95,7 +125,10 @@ class BookControllerTest {
 
     @Test
     void createBook_returns400_whenEshopUrlSetOnPaperBook() throws Exception {
-        CreateBookRequest request = new CreateBookRequest("Clean Code", "Robert Martin", BookType.PAPER, "https://amazon.com", null);
+        var author = authorService.create(new CreateAuthorRequest("Robert Martin"));
+        var request = CreateBookRequest.builder()
+                .title("Clean Code").authorIds(List.of(author.id()))
+                .bookType(BookType.PAPER).eshopUrl("https://amazon.com").build();
 
         mockMvc.perform(post("/api/books")
                         .header("Authorization", "Bearer " + TOKEN)
@@ -106,10 +139,12 @@ class BookControllerTest {
 
     @Test
     void createBook_returns400_whenTitleIsBlank() throws Exception {
+        var author = authorService.create(new CreateAuthorRequest("Robert Martin"));
+
         mockMvc.perform(post("/api/books")
                         .header("Authorization", "Bearer " + TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"\",\"author\":\"Author\",\"bookType\":\"PAPER\"}"))
+                        .content("{\"title\":\"\",\"authorIds\":[\"" + author.id() + "\"],\"bookType\":\"PAPER\"}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -117,13 +152,16 @@ class BookControllerTest {
 
     @Test
     void getBook_returns200_whenBookExists() throws Exception {
-        var created = bookService.create(USER_ID, new CreateBookRequest("Dune", "Frank Herbert", BookType.PAPER, null, null));
+        var author = authorService.create(new CreateAuthorRequest("Frank Herbert"));
+        var created = bookService.create(USER_ID, CreateBookRequest.builder()
+                .title("Diuna").originalTitle("Dune").authorIds(List.of(author.id())).bookType(BookType.PAPER).build());
 
-        mockMvc.perform(get("/api/books/" + created.id())
+        mockMvc.perform(get("/api/books/" + created.getId())
                         .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(created.id()))
-                .andExpect(jsonPath("$.title").value("Dune"));
+                .andExpect(jsonPath("$.id").value(created.getId()))
+                .andExpect(jsonPath("$.title").value("Diuna"))
+                .andExpect(jsonPath("$.originalTitle").value("Dune"));
     }
 
     @Test
@@ -137,10 +175,13 @@ class BookControllerTest {
 
     @Test
     void updateBook_returns200_whenCallerIsOwner() throws Exception {
-        var created = bookService.create(USER_ID, new CreateBookRequest("Old Title", "Author", BookType.PAPER, null, null));
-        UpdateBookRequest update = new UpdateBookRequest("New Title", "Author", BookType.PAPER, null, null);
+        var author = authorService.create(new CreateAuthorRequest("Robert Martin"));
+        var created = bookService.create(USER_ID, CreateBookRequest.builder()
+                .title("Old Title").authorIds(List.of(author.id())).bookType(BookType.PAPER).build());
+        var update = UpdateBookRequest.builder()
+                .title("New Title").authorIds(List.of(author.id())).bookType(BookType.PAPER).build();
 
-        mockMvc.perform(put("/api/books/" + created.id())
+        mockMvc.perform(put("/api/books/" + created.getId())
                         .header("Authorization", "Bearer " + TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(update)))
@@ -150,10 +191,13 @@ class BookControllerTest {
 
     @Test
     void updateBook_returns403_whenCallerIsNotOwner() throws Exception {
-        var created = bookService.create(OTHER_USER_ID, new CreateBookRequest("Title", "Author", BookType.PAPER, null, null));
-        UpdateBookRequest update = new UpdateBookRequest("Hacked Title", "Author", BookType.PAPER, null, null);
+        var author = authorService.create(new CreateAuthorRequest("Robert Martin"));
+        var created = bookService.create(OTHER_USER_ID, CreateBookRequest.builder()
+                .title("Title").authorIds(List.of(author.id())).bookType(BookType.PAPER).build());
+        var update = UpdateBookRequest.builder()
+                .title("Hacked Title").authorIds(List.of(author.id())).bookType(BookType.PAPER).build();
 
-        mockMvc.perform(put("/api/books/" + created.id())
+        mockMvc.perform(put("/api/books/" + created.getId())
                         .header("Authorization", "Bearer " + TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(update)))
@@ -164,18 +208,22 @@ class BookControllerTest {
 
     @Test
     void deleteBook_returns204_whenCallerIsOwner() throws Exception {
-        var created = bookService.create(USER_ID, new CreateBookRequest("Title", "Author", BookType.PAPER, null, null));
+        var author = authorService.create(new CreateAuthorRequest("Robert Martin"));
+        var created = bookService.create(USER_ID, CreateBookRequest.builder()
+                .title("Title").authorIds(List.of(author.id())).bookType(BookType.PAPER).build());
 
-        mockMvc.perform(delete("/api/books/" + created.id())
+        mockMvc.perform(delete("/api/books/" + created.getId())
                         .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void deleteBook_returns403_whenCallerIsNotOwner() throws Exception {
-        var created = bookService.create(OTHER_USER_ID, new CreateBookRequest("Title", "Author", BookType.PAPER, null, null));
+        var author = authorService.create(new CreateAuthorRequest("Robert Martin"));
+        var created = bookService.create(OTHER_USER_ID, CreateBookRequest.builder()
+                .title("Title").authorIds(List.of(author.id())).bookType(BookType.PAPER).build());
 
-        mockMvc.perform(delete("/api/books/" + created.id())
+        mockMvc.perform(delete("/api/books/" + created.getId())
                         .header("Authorization", "Bearer " + TOKEN))
                 .andExpect(status().isForbidden());
     }
