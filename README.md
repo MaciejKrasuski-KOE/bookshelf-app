@@ -30,24 +30,24 @@ A full-stack microservices application for managing a personal book library, she
 
 ### Services
 
-| Service | Port (HTTP) | Port (gRPC) | Responsibility |
-|---------|-------------|-------------|----------------|
-| user-service | 8080 | 9090 | Auth (JWT), user CRUD |
-| shelf-service | 8081 | 9091 | Shelf + book-list management |
-| review-service | 8082 | 9092 | Book reviews (verified-reader badge) |
-| book-service | 8083 | 9093 | Book catalog (shared pool, ownership) |
-| react-frontend | 3000 / 80 | — | SPA + nginx proxy |
+| Service        | Port (HTTP) | Port (gRPC) | Responsibility                        |
+|----------------|-------------|-------------|---------------------------------------|
+| user-service   | 8080        | 9090        | Auth (JWT), user CRUD                 |
+| shelf-service  | 8081        | 9091        | Shelf + book-list management          |
+| review-service | 8082        | 9092        | Book reviews (verified-reader badge)  |
+| book-service   | 8083        | 9093        | Book catalog (shared pool, ownership) |
+| react-frontend | 3000 / 80   | —           | SPA + nginx proxy                     |
 
 ### gRPC contracts
 
 Proto files live in `proto/` (canonical) and are copied into each service's `src/main/proto/`.
 
-| Proto | Served by | Called by |
-|-------|-----------|-----------|
-| `user.proto` | user-service | shelf-service, review-service, book-service |
-| `shelf.proto` | shelf-service | review-service |
-| `review.proto` | review-service | — |
-| `book.proto` | book-service | — (future: shelf-service, review-service) |
+| Proto          | Served by      | Called by                                   |
+|----------------|----------------|---------------------------------------------|
+| `user.proto`   | user-service   | shelf-service, review-service, book-service |
+| `shelf.proto`  | shelf-service  | review-service                              |
+| `review.proto` | review-service | —                                           |
+| `book.proto`   | book-service   | — (future: shelf-service, review-service)   |
 
 ### Inter-service gRPC calls
 
@@ -64,13 +64,14 @@ Proto files live in `proto/` (canonical) and are copied into each service's `src
 docker compose up --build
 ```
 
-| URL | Description |
-|-----|-------------|
-| http://localhost:3000 | React frontend |
-| http://localhost:8080 | user-service REST |
-| http://localhost:8081 | shelf-service REST |
-| http://localhost:8082 | review-service REST |
-| http://localhost:8083 | book-service REST |
+| URL                                   | Description         |
+|---------------------------------------|---------------------|
+| http://localhost:3000                 | React frontend      |
+| http://localhost:3000/catalog/authors | Author catalog      |
+| http://localhost:8080                 | user-service REST   |
+| http://localhost:8081                 | shelf-service REST  |
+| http://localhost:8082                 | review-service REST |
+| http://localhost:8083                 | book-service REST   |
 
 ---
 
@@ -110,37 +111,57 @@ cd react-frontend && npm install && npm run dev
 
 The Vite dev-server proxies `/api/*` to the correct back-end service automatically.
 
+| Proxied path                  | Target              |
+|-------------------------------|---------------------|
+| `/api/auth`, `/api/users`     | user-service :8080  |
+| `/api/shelves`                | shelf-service :8081 |
+| `/api/reviews`                | review-service :8082 |
+| `/api/books`, `/api/authors`  | book-service :8083  |
+
+---
+
+## Frontend Routes
+
+| Route               | Auth | Description                        |
+|---------------------|------|------------------------------------|
+| `/login`            | —    | Login                              |
+| `/register`         | —    | Register                           |
+| `/shelves`          | JWT  | User's shelves                     |
+| `/shelves/:id`      | JWT  | Shelf detail with book list        |
+| `/reviews/:bookId`  | —    | Public reviews for a book          |
+| `/catalog/authors`  | JWT  | Author catalog — list, add, delete |
+
 ---
 
 ## REST API
 
 ### user-service (`/api/auth`)
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/auth/register` | — | Register new user |
-| POST | `/api/auth/login` | — | Obtain JWT |
-| GET  | `/api/auth/me` | JWT | Current user info |
+| Method | Path                  | Auth | Description       |
+|--------|-----------------------|------|-------------------|
+| POST   | `/api/auth/register`  | —    | Register new user |
+| POST   | `/api/auth/login`     | —    | Obtain JWT        |
+| GET    | `/api/auth/me`        | JWT  | Current user info |
 
 ### shelf-service (`/api/shelves`)
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET  | `/api/shelves` | JWT | List user's shelves (auto-creates defaults on first call) |
-| POST | `/api/shelves` | JWT | Create custom shelf |
-| GET  | `/api/shelves/{id}` | JWT | Get shelf |
-| DELETE | `/api/shelves/{id}` | JWT | Delete shelf (403 for default shelves) |
-| POST | `/api/shelves/{id}/books` | JWT | Add book to shelf |
-| DELETE | `/api/shelves/{id}/books/{bookId}` | JWT | Remove book from shelf |
+| Method | Path                               | Auth | Description                                       |
+|--------|------------------------------------|------|---------------------------------------------------|
+| GET    | `/api/shelves`                     | JWT  | List user's shelves (auto-creates defaults on first call) |
+| POST   | `/api/shelves`                     | JWT  | Create custom shelf                               |
+| GET    | `/api/shelves/{id}`                | JWT  | Get shelf                                         |
+| DELETE | `/api/shelves/{id}`                | JWT  | Delete shelf (403 for default shelves)            |
+| POST   | `/api/shelves/{id}/books`          | JWT  | Add book to shelf                                 |
+| DELETE | `/api/shelves/{id}/books/{bookId}` | JWT  | Remove book from shelf                            |
 
 ### review-service (`/api/reviews`)
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET  | `/api/reviews/book/{bookId}` | — | Public reviews for a book |
-| GET  | `/api/reviews/user/{userId}` | — | Reviews by a user |
-| POST | `/api/reviews` | JWT | Submit review |
-| DELETE | `/api/reviews/{id}` | JWT | Delete own review |
+| Method | Path                          | Auth | Description                |
+|--------|-------------------------------|------|----------------------------|
+| GET    | `/api/reviews/book/{bookId}`  | —    | Public reviews for a book  |
+| GET    | `/api/reviews/user/{userId}`  | —    | Reviews by a user          |
+| POST   | `/api/reviews`                | JWT  | Submit review              |
+| DELETE | `/api/reviews/{id}`           | JWT  | Delete own review          |
 
 Reviews are automatically tagged as **verified reader** when the book is present on any of the reviewer's shelves (checked via gRPC to shelf-service at write time).
 
@@ -148,55 +169,55 @@ Reviews are automatically tagged as **verified reader** when the book is present
 
 **Books**
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET  | `/api/books` | JWT | List all books (shared pool) |
-| POST | `/api/books` | JWT | Add a book (caller becomes owner) |
-| GET  | `/api/books/{id}` | JWT | Get book |
-| PUT  | `/api/books/{id}` | JWT | Update book (owner only) |
-| DELETE | `/api/books/{id}` | JWT | Delete book (owner only) |
+| Method | Path               | Auth | Description                       |
+|--------|--------------------|------|-----------------------------------|
+| GET    | `/api/books`       | JWT  | List all books (shared pool)      |
+| POST   | `/api/books`       | JWT  | Add a book (caller becomes owner) |
+| GET    | `/api/books/{id}`  | JWT  | Get book                          |
+| PUT    | `/api/books/{id}`  | JWT  | Update book (owner only)          |
+| DELETE | `/api/books/{id}`  | JWT  | Delete book (owner only)          |
 
 **Book fields:**
 
-| Field | Type | Notes |
-|-------|------|-------|
-| `title` | string | required — Polish/primary title |
-| `originalTitle` | string | optional — original-language title |
-| `authors` | string[] | list of author IDs (many-to-many) |
-| `bookType` | `PAPER` \| `EBOOK` | required |
-| `eshopUrl` | string | optional — only allowed when `bookType = EBOOK`, hard 400 otherwise |
-| `privateFileKey` | string | optional — blob storage reference, upload API planned |
-| `seriesId` | string | optional — ID of parent Series |
-| `subSeriesId` | string | optional — ID of parent SubSeries |
-| `seriesOrder` | integer | optional — position within the series |
-| `subSeriesOrder` | integer | optional — position within the sub-series |
+| Field            | Type                | Notes                                                                  |
+|------------------|---------------------|------------------------------------------------------------------------|
+| `title`          | string              | required — Polish/primary title                                        |
+| `originalTitle`  | string              | optional — original-language title                                     |
+| `authors`        | string[]            | list of author IDs (many-to-many)                                      |
+| `bookType`       | `PAPER` \| `EBOOK`  | required                                                               |
+| `eshopUrl`       | string              | optional — only allowed when `bookType = EBOOK`, hard 400 otherwise    |
+| `privateFileKey` | string              | optional — blob storage reference, upload API planned                  |
+| `seriesId`       | string              | optional — ID of parent Series                                         |
+| `subSeriesId`    | string              | optional — ID of parent SubSeries                                      |
+| `seriesOrder`    | integer             | optional — position within the series                                  |
+| `subSeriesOrder` | integer             | optional — position within the sub-series                              |
 
 **Authors**
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET  | `/api/authors` | JWT | List all authors |
-| POST | `/api/authors` | JWT | Create author |
-| GET  | `/api/authors/{id}` | JWT | Get author |
-| DELETE | `/api/authors/{id}` | JWT | Delete author |
+| Method | Path                  | Auth | Description      |
+|--------|-----------------------|------|------------------|
+| GET    | `/api/authors`        | JWT  | List all authors |
+| POST   | `/api/authors`        | JWT  | Create author    |
+| GET    | `/api/authors/{id}`   | JWT  | Get author       |
+| DELETE | `/api/authors/{id}`   | JWT  | Delete author    |
 
 **Series**
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET  | `/api/series` | JWT | List all series |
-| POST | `/api/series` | JWT | Create series |
-| GET  | `/api/series/{id}` | JWT | Get series |
-| DELETE | `/api/series/{id}` | JWT | Delete series |
+| Method | Path                  | Auth | Description      |
+|--------|-----------------------|------|------------------|
+| GET    | `/api/series`         | JWT  | List all series  |
+| POST   | `/api/series`         | JWT  | Create series    |
+| GET    | `/api/series/{id}`    | JWT  | Get series       |
+| DELETE | `/api/series/{id}`    | JWT  | Delete series    |
 
 **Sub-series**
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET  | `/api/sub-series` | JWT | List sub-series (filter: `?seriesId=`) |
-| POST | `/api/sub-series` | JWT | Create sub-series (requires `seriesId`) |
-| GET  | `/api/sub-series/{id}` | JWT | Get sub-series |
-| DELETE | `/api/sub-series/{id}` | JWT | Delete sub-series |
+| Method | Path                    | Auth | Description                              |
+|--------|-------------------------|------|------------------------------------------|
+| GET    | `/api/sub-series`       | JWT  | List sub-series (filter: `?seriesId=`)   |
+| POST   | `/api/sub-series`       | JWT  | Create sub-series (requires `seriesId`)  |
+| GET    | `/api/sub-series/{id}`  | JWT  | Get sub-series                           |
+| DELETE | `/api/sub-series/{id}`  | JWT  | Delete sub-series                        |
 
 ---
 
@@ -214,20 +235,32 @@ bookshelf-app/
 ├── review-service/         # Spring Boot 3 · Java 21 · gRPC server+client
 ├── book-service/           # Spring Boot 3 · Java 21 · gRPC server+client
 ├── react-frontend/         # Vite · React 18 · TypeScript
+│   └── src/
+│       ├── api/
+│       │   ├── auth.ts
+│       │   ├── books.ts    # authors, books, series, sub-series API clients
+│       │   ├── reviews.ts
+│       │   └── shelves.ts
+│       ├── components/
+│       │   ├── auth/       # LoginForm, RegisterForm
+│       │   ├── catalog/    # AuthorList (books, series, sub-series — planned)
+│       │   ├── reviews/    # ReviewForm, ReviewList
+│       │   └── shelves/    # ShelfList, ShelfDetail
+│       └── types/          # Shared TypeScript types
 └── docker-compose.yml
 ```
 
 ### Key libraries
 
-| Library | Version | Purpose |
-|---------|---------|---------|
-| Spring Boot | 3.2.3 | Application framework |
-| grpc-spring-boot-starter | 3.1.0.RELEASE | gRPC integration |
-| protobuf-java | 3.25.2 | Protocol Buffers |
-| jjwt | 0.12.5 | JWT (user-service) |
-| Flyway | (managed) | DB migrations |
-| H2 | (managed) | In-memory DB for tests |
-| TanStack Query | 5 | Data fetching (frontend) |
+| Library                    | Version        | Purpose                    |
+|----------------------------|----------------|----------------------------|
+| Spring Boot                | 3.2.3          | Application framework      |
+| grpc-spring-boot-starter   | 3.1.0.RELEASE  | gRPC integration           |
+| protobuf-java              | 3.25.2         | Protocol Buffers           |
+| jjwt                       | 0.12.5         | JWT (user-service)         |
+| Flyway                     | (managed)      | DB migrations              |
+| H2                         | (managed)      | In-memory DB for tests     |
+| TanStack Query             | 5              | Data fetching (frontend)   |
 
 ---
 
@@ -244,13 +277,13 @@ cd book-service   && mvn test
 
 ### Test stack
 
-| Tool | Role |
-|------|------|
-| JUnit 5 | Test runner |
-| Mockito | Mocking for unit tests |
-| Spring Boot Test (`@SpringBootTest`) | Integration / controller tests |
-| H2 (in-memory) | Replaces PostgreSQL in test scope |
-| Flyway | Runs real migrations against H2 on every test run |
+| Tool                                  | Role                                               |
+|---------------------------------------|----------------------------------------------------|
+| JUnit 5                               | Test runner                                        |
+| Mockito                               | Mocking for unit tests                             |
+| Spring Boot Test (`@SpringBootTest`)  | Integration / controller tests                     |
+| H2 (in-memory)                        | Replaces PostgreSQL in test scope                  |
+| Flyway                                | Runs real migrations against H2 on every test run  |
 
 ### Test layers
 
@@ -260,12 +293,12 @@ Each service has two layers of tests:
 
 **Controller / integration tests** — `@SpringBootTest` + `@AutoConfigureMockMvc` + H2. The full Spring context loads (security, filters, real service + repository layers). Only external gRPC calls are mocked:
 
-| Service | Mocked in controller tests |
-|---------|---------------------------|
-| user-service | nothing — JWT is validated locally |
-| shelf-service | `UserGrpcClient` (token validation) |
-| review-service | `UserGrpcClient` (token validation), `ShelfGrpcClient` (verified-reader check) |
-| book-service | `UserGrpcClient` (token validation) |
+| Service        | Mocked in controller tests                                                      |
+|----------------|---------------------------------------------------------------------------------|
+| user-service   | nothing — JWT is validated locally                                              |
+| shelf-service  | `UserGrpcClient` (token validation)                                             |
+| review-service | `UserGrpcClient` (token validation), `ShelfGrpcClient` (verified-reader check)  |
+| book-service   | `UserGrpcClient` (token validation)                                             |
 
 Tests are `@Transactional` — each test rolls back automatically, no manual cleanup needed.
 
@@ -279,16 +312,16 @@ This project follows strict TDD. See [CLAUDE.md](CLAUDE.md) for the full rules.
 
 Each service has Flyway migrations under `src/main/resources/db/migration/`.
 
-| Service | Migration | Tables |
-|---------|-----------|--------|
-| user-service | V1__create_users_table.sql | `users` |
-| shelf-service | V1__create_shelves_table.sql | `shelves`, `shelf_books` |
-|  | V2__add_is_default_to_shelves.sql | adds `shelf_type` column |
-| review-service | V1__create_reviews_table.sql | `reviews` |
-| book-service | V1__create_books_table.sql | `books` |
-|  | V2__add_authors_table.sql | `authors`, `book_authors` (join table) |
-|  | V3__add_series_tables.sql | `series`, `sub_series` |
-|  | V4__update_books_table.sql | drops `author` column; adds `original_title`, `series_id`, `sub_series_id`, `series_order`, `sub_series_order` |
+| Service        | Migration                          | Tables                                                                                                       |
+|----------------|------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| user-service   | V1__create_users_table.sql         | `users`                                                                                                      |
+| shelf-service  | V1__create_shelves_table.sql       | `shelves`, `shelf_books`                                                                                     |
+|                | V2__add_is_default_to_shelves.sql  | adds `shelf_type` column                                                                                     |
+| review-service | V1__create_reviews_table.sql       | `reviews`                                                                                                    |
+| book-service   | V1__create_books_table.sql         | `books`                                                                                                      |
+|                | V2__add_authors_table.sql          | `authors`, `book_authors` (join table)                                                                       |
+|                | V3__add_series_tables.sql          | `series`, `sub_series`                                                                                       |
+|                | V4__update_books_table.sql         | drops `author` column; adds `original_title`, `series_id`, `sub_series_id`, `series_order`, `sub_series_order` |
 
 ---
 
@@ -296,12 +329,12 @@ Each service has Flyway migrations under `src/main/resources/db/migration/`.
 
 On first load, shelf-service automatically creates four default shelves for each user:
 
-| Enum value | Display name |
-|---|---|
-| `READ` | Read |
-| `CURRENTLY_READING` | Currently Reading |
-| `OWNED` | Owned |
-| `WISH_LIST` | Wish List |
+| Enum value           | Display name       |
+|----------------------|--------------------|
+| `READ`               | Read               |
+| `CURRENTLY_READING`  | Currently Reading  |
+| `OWNED`              | Owned              |
+| `WISH_LIST`          | Wish List          |
 
 Custom shelves have type `CUSTOM` and can be freely deleted. Default shelves cannot be deleted.
 

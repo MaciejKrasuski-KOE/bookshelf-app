@@ -36,3 +36,12 @@ export interface CreateReviewRequest {
   rating: number;
   content: string;
 }
+
+export interface Author {
+  id: string;
+  name: string;
+}
+
+export interface CreateAuthorRequest {
+  name: string;
+}

@@ -4,6 +4,7 @@ import RegisterForm from './components/auth/RegisterForm';
 import ShelfList from './components/shelves/ShelfList';
 import ShelfDetail from './components/shelves/ShelfDetail';
 import ReviewList from './components/reviews/ReviewList';
+import AuthorList from './components/catalog/AuthorList';
 
 function isAuthenticated() {
   return !!localStorage.getItem('token');
@@ -26,6 +27,10 @@ export default function App() {
         <PrivateRoute><ShelfDetail /></PrivateRoute>
       } />
       <Route path="/reviews/:bookId" element={<ReviewList />} />
+
+      <Route path="/catalog/authors" element={
+        <PrivateRoute><AuthorList /></PrivateRoute>
+      } />
 
       <Route path="*" element={<Navigate to="/shelves" replace />} />
     </Routes>
